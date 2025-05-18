@@ -275,9 +275,7 @@ func ExitHyprland() (err error) {
 	return err
 }
 
-func ToggleStackMain(args []string) (rc int, err error) {
-	// Simplify if https://github.com/hyprwm/Hyprland/discussions/10464 is implemented
-	rc = 1
+func toggle_stack() (err error) {
 	var workspace Workspace
 	var clients []Window
 	var active_window Window
@@ -313,7 +311,7 @@ func ToggleStackMain(args []string) (rc int, err error) {
 	if len(seen) > 0 {
 		// Make active window the master
 		_, err = send_commands("dispatch movewindow l")
-		return utils.IfElse(err == nil, 0, 1), err
+		return
 	}
 	if len(clients) > 0 { // group all windows
 		q := clients[0]
@@ -366,7 +364,13 @@ func ToggleStackMain(args []string) (rc int, err error) {
 			return
 		}
 	}
-	return 0, nil
+	return
+}
+
+func ToggleStackMain(args []string) (rc int, err error) {
+	// Simplify if https://github.com/hyprwm/Hyprland/discussions/10464 is implemented
+	err = toggle_stack()
+	return utils.IfElse(err == nil, 0, 1), err
 }
 
 func TogglePower(action, output_name_glob string) (err error) {
@@ -389,8 +393,76 @@ func TogglePower(action, output_name_glob string) (err error) {
 }
 
 func ChangeToWorkspace(name string) (err error) {
-	_, err = send_commands("dispatch workspace " + name)
+	_, err = send_commands("dispatch workspace name:" + name)
 	return
+}
+
+// move the window managing the window stacks in source and description workspaces
+func move_to_workspace(active_workspace Workspace, active_window Window, target_workspace Workspace, windows []Window) (err error) {
+	if active_workspace.Id == target_workspace.Id {
+		return
+	}
+	cmds := []string{}
+	active_window_was_grouped := len(active_window.Grouped) > 0
+	if active_window_was_grouped {
+		cmds = append(cmds, "dispatch togglegroup")
+	}
+	cmds = append(cmds, fmt.Sprintf("dispatch movetoworkspacesilent %d", target_workspace.Id))
+	if _, err = send_commands(cmds...); err != nil {
+		return
+	}
+	target_workspace_is_stacked := false
+	for _, w := range windows {
+		if w.Workspace.Id == target_workspace.Id && len(w.Grouped) > 0 {
+			target_workspace_is_stacked = true
+			break
+		}
+	}
+	if target_workspace_is_stacked {
+		if _, err = send_commands(
+			fmt.Sprintf("dispatch workspace %d", target_workspace.Id),
+			"dispatch focuswindow address:"+active_window.Address,
+			"dispatch moveintogroup l",
+			fmt.Sprintf("dispatch workspace %d", active_workspace.Id),
+		); err != nil {
+			return
+		}
+	} else if target_workspace.Windows == 0 {
+		// single window in target workspace so put it in stack layout
+		if _, err = send_commands(
+			fmt.Sprintf("dispatch workspace %d", target_workspace.Id),
+			"dispatch focuswindow address:"+active_window.Address,
+			"dispatch togglegroup",
+			fmt.Sprintf("dispatch workspace %d", active_workspace.Id),
+		); err != nil {
+			return
+		}
+	}
+	if active_window_was_grouped {
+		// regroup remaining windows after we have moved out the active one
+		err = toggle_stack()
+	}
+
+	return
+}
+
+func MoveToWorkspace(name string) (err error) {
+	var workspaces []Workspace
+	var active_workspace Workspace
+	var active_window Window
+	var windows []Window
+	if err = make_requests(
+		request{"workspaces", &workspaces}, request{"activeworkspace", &active_workspace}, request{"activewindow", &active_window},
+		request{"clients", &windows},
+	); err != nil {
+		return
+	}
+	for _, w := range workspaces {
+		if w.Name == name {
+			return move_to_workspace(active_workspace, active_window, w, windows)
+		}
+	}
+	return fmt.Errorf("No workspace named %s exists", name)
 }
 
 func SuperTab() (err error) {

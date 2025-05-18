@@ -90,6 +90,26 @@ func main() {
 		},
 	})
 	root.AddSubCommand(&cli.Command{
+		Name:             "move-to-workspace",
+		Usage:            " workspace_name",
+		ShortDescription: "Move the active window to the specified workspace",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			if len(args) != 1 {
+				cmd.ShowHelp()
+				return 1, nil
+			}
+			switch {
+			case hypr.IsHyprlandRunning():
+				err = hypr.MoveToWorkspace(args[0])
+			default:
+				err = fmt.Errorf("No supported Wayland compositor is running")
+			}
+			return utils.IfElse(err == nil, 0, 1), err
+		},
+	})
+
+	root.AddSubCommand(&cli.Command{
 		Name:             "super-tab",
 		ShortDescription: "Switch between windows in a group if a group is active otherwise switch normally",
 		OnlyArgsAllowed:  true,
