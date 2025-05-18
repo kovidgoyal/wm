@@ -388,6 +388,11 @@ func TogglePower(action, output_name_glob string) (err error) {
 	return
 }
 
+func ChangeToWorkspace(name string) (err error) {
+	_, err = send_commands("dispatch workspace " + name)
+	return
+}
+
 func IsHyprlandRunning() bool {
 	return RuntimeDir() != ""
 }

@@ -231,6 +231,15 @@ func GetWindowRegions() (regions [][4]int, err error) {
 	return
 }
 
+func ChangeToWorkspace(name string) (err error) {
+	var conn *net.UnixConn
+	if conn, err = connect_to_sway(); err != nil {
+		return
+	}
+	err = swaymsg(conn, RUN_COMMAND, []byte("workspace "+name))
+	return
+}
+
 func SwayBar(set_string func(change, val string)) (err error) {
 	var payload []byte
 	var msg_type uint32

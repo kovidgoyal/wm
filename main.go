@@ -1,15 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/kovidgoyal/kitty/tools/cli"
+	"github.com/kovidgoyal/kitty/tools/utils"
 
 	"wm/bar"
 	"wm/display"
 	"wm/hypr"
 	"wm/quit_session"
 	"wm/screenshot"
+	"wm/sway"
 )
 
 func main() {
@@ -63,6 +66,27 @@ func main() {
 		OnlyArgsAllowed:  true,
 		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
 			return hypr.ToggleStackMain(args)
+		},
+	})
+	root.AddSubCommand(&cli.Command{
+		Name:             "workspace",
+		Usage:            " workspace_name",
+		ShortDescription: "Change to the specified workspace",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			if len(args) != 1 {
+				cmd.ShowHelp()
+				return 1, nil
+			}
+			switch {
+			case hypr.IsHyprlandRunning():
+				err = hypr.ChangeToWorkspace(args[0])
+			case sway.IsSwayRunning():
+				err = sway.ChangeToWorkspace(args[0])
+			default:
+				err = fmt.Errorf("No supported Wayland compositor is running")
+			}
+			return utils.IfElse(err == nil, 0, 1), err
 		},
 	})
 	root.Exec(os.Args...)
