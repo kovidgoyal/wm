@@ -41,7 +41,7 @@ func IsSwayRunning() bool {
 func connect_to_sway() (conn *net.UnixConn, err error) {
 	sockaddr := SocketAddr()
 	if sockaddr == "" {
-		return nil, os.ErrNotExist
+		return nil, fmt.Errorf("The sway compositor does not seem to be running, could not find its socket")
 	}
 	var addr *net.UnixAddr
 	if addr, err = net.ResolveUnixAddr("unix", sockaddr); err != nil {

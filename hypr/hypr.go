@@ -41,7 +41,7 @@ var RuntimeDir = sync.OnceValue(func() string {
 func get_conn(which string) (conn *net.UnixConn, err error) {
 	rdir := RuntimeDir()
 	if rdir == "" {
-		return nil, os.ErrNotExist
+		return nil, fmt.Errorf("The Hyprland compositor does not seem to be running, could not find its socket")
 	}
 	sockaddr := filepath.Join(rdir, which)
 	var addr *net.UnixAddr
