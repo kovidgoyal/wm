@@ -4,7 +4,8 @@ go 1.23.0
 
 toolchain go1.24.1
 
-replace github.com/kovidgoyal/kitty => ../kitty
+// Comment out the below line to use kitty directly from github
+//replace github.com/kovidgoyal/kitty => ../kitty
 
 require (
 	github.com/kovidgoyal/kitty v0.0.0-00010101000000-000000000000
