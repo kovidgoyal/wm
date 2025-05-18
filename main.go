@@ -1,0 +1,70 @@
+package main
+
+import (
+	"os"
+
+	"github.com/kovidgoyal/kitty/tools/cli"
+
+	"wm/bar"
+	"wm/display"
+	"wm/hypr"
+	"wm/quit_session"
+	"wm/screenshot"
+)
+
+func main() {
+	root := cli.NewRootCommand()
+	root.ShortDescription = "A tool to ease integration with Wayland compositors"
+	root.HelpText = "Serves as an entrypoint for various tools such as bar."
+	root.Usage = "command [command options] [command args]"
+	root.Run = func(cmd *cli.Command, args []string) (int, error) {
+		cmd.ShowHelp()
+		return 0, nil
+	}
+
+	root.AddSubCommand(&cli.Command{
+		Name:             "bar",
+		ShortDescription: "Top bar for desktop",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			bar.Main(args)
+			return
+		},
+	})
+	root.AddSubCommand(&cli.Command{
+		Name:             "screenshot",
+		ShortDescription: "Take a screenshot",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			screenshot.Main(args)
+			return
+		},
+	})
+	root.AddSubCommand(&cli.Command{
+		Name:             "quit_session",
+		ShortDescription: "Quit the current session",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			quit_session.Main(args)
+			return
+		},
+	})
+	display.AddEntryPoints(root.AddSubCommand(&cli.Command{
+		Name:             "display",
+		ShortDescription: "Control the monitors",
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			cmd.ShowHelp()
+			return
+		},
+	}))
+	root.AddSubCommand(&cli.Command{
+		Name:             "togglestack",
+		ShortDescription: "Toggle stacked layout in Hyprland since it doesnt have this functionality builtin",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			return hypr.ToggleStackMain(args)
+		},
+	})
+	root.Exec(os.Args...)
+
+}
