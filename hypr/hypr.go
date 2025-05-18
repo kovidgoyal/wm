@@ -285,6 +285,9 @@ func toggle_stack() (err error) {
 	clients = utils.Filter(clients, func(c Window) bool {
 		return !c.Floating && c.Workspace.Id == workspace.Id
 	})
+	if len(clients) == 0 {
+		return
+	}
 	seen := make(map[string]bool)
 	if len(active_window.Grouped) > 0 { // ungroup active window
 		if _, err = send_commands("dispatch togglegroup"); err != nil {
