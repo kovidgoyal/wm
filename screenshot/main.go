@@ -24,7 +24,7 @@ var instance_group = ""
 var panel_cmdline = []string{
 	"kitten", "panel", `--override=font_size=12`, `--override=background=#444`,
 	"--override=background_opacity=0.4", "--override=confirm_os_window_close=0", "--override=close_on_child_death=y",
-	"--override=clipboard_control=write-clipboard",
+	"--override=clipboard_control=write-clipboard", "--override=clear_all_shortcuts=y",
 	"-o=color0=#222", "-o=color7=#b8bcb9", "-o=color1=#be3e48", "-o=color2=#869a3a", "-o=color3=#c4a535",
 	"--layer=overlay", "--edge=center", "--focus-policy=exclusive",
 	"--toggle-visibility", "--single-instance",
