@@ -393,6 +393,16 @@ func ChangeToWorkspace(name string) (err error) {
 	return
 }
 
+func SuperTab() (err error) {
+	var window Window
+	if err = make_requests(request{"activewindow", &window}); err != nil {
+		return
+	}
+	cmd := utils.IfElse(len(window.Grouped) > 1, "dispatch changegroupactive", "dispatch cyclenext")
+	_, err = send_commands(cmd)
+	return
+}
+
 func IsHyprlandRunning() bool {
 	return RuntimeDir() != ""
 }

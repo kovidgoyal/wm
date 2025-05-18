@@ -89,6 +89,21 @@ func main() {
 			return utils.IfElse(err == nil, 0, 1), err
 		},
 	})
+	root.AddSubCommand(&cli.Command{
+		Name:             "super-tab",
+		ShortDescription: "Switch between windows in a group if a group is active otherwise switch normally",
+		OnlyArgsAllowed:  true,
+		Run: func(cmd *cli.Command, args []string) (rc int, err error) {
+			if len(args) != 0 {
+				cmd.ShowHelp()
+				return 1, nil
+			}
+			if err = hypr.SuperTab(); err != nil {
+				rc = 1
+			}
+			return
+		},
+	})
 	root.Exec(os.Args...)
 
 }
