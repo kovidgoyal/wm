@@ -62,13 +62,13 @@ func Draw_lines_in_subframe(lp *loop.Loop, bg_style string, lines ...string) {
 	x := max(0, screen_width-width) / 2
 	y := max(0, screen_height-height) / 2
 	for i, line := range lines {
-		lp.MoveCursorTo(x+1, y+i+2)
+		lp.MoveCursorTo(x+2, y+i+2)
 		if line != "" {
 			if line[0] == 0 {
 				lwidth := wcswidth.Stringwidth(line)
 				extra := width - lwidth
 				if extra > 1 {
-					lp.MoveCursorHorizontally(extra / 2)
+					lp.MoveCursorHorizontally(extra/2 - 1)
 				}
 			}
 			lp.QueueWriteString(line)
@@ -194,11 +194,11 @@ func run_loop() {
 		a := func(x string) { ans = append(ans, x) }
 		a(text)
 		a("")
-		a(fmt.Sprintf(" Press %s to abort", lp.SprintStyled("italic fg=red", "Esc")))
+		a(fmt.Sprintf("Press %s to abort", lp.SprintStyled("italic fg=red", "Esc")))
 		a("")
-		a(" Screenshot will be:")
-		a(fmt.Sprintf("   copied to %s", lp.SprintStyled("fg=yellow", "clipboard")))
-		a(fmt.Sprintf("   saved to %s", lp.SprintStyled("fg=yellow", FILENAME)))
+		a("Screenshot will be:")
+		a(fmt.Sprintf("  copied to %s", lp.SprintStyled("fg=yellow", "clipboard")))
+		a(fmt.Sprintf("  saved to %s", lp.SprintStyled("fg=yellow", FILENAME)))
 		return
 	}
 
