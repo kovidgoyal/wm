@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"wm/common"
 
 	"github.com/kovidgoyal/kitty/tools/tty"
 	"github.com/kovidgoyal/kitty/tools/utils"
@@ -237,7 +238,7 @@ func (self Window) Direction_to(dest Window) string {
 	}
 }
 
-func GetWindowRegions() (regions [][4]int, err error) {
+func GetWindowRegions() (regions []common.WindowRegion, err error) {
 	var workspace Workspace
 	var windows []Window
 	if err = make_requests(request{cmd: "activeworkspace", response: &workspace}, request{cmd: "clients", response: &windows}); err != nil {
@@ -249,7 +250,7 @@ func GetWindowRegions() (regions [][4]int, err error) {
 			region := [4]int{w.At[0], w.At[1], w.Size[0], w.Size[1]}
 			if !seen[region] {
 				seen[region] = true
-				regions = append(regions, region)
+				regions = append(regions, common.WindowRegion{X: region[0], Y: region[1], Width: region[2], Height: region[3], Label: w.Title})
 			}
 		}
 	}

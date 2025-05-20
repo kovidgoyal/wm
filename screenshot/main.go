@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"wm/common"
 	"wm/hypr"
 	"wm/sway"
 
@@ -113,15 +114,15 @@ func copy_image_to_clipboard(lp *loop.Loop) {
 	lp.QueueWriteString(encode_clipboard_chunk(map[string]string{"type": "wdata"}, nil))
 }
 
-func format_regions_for_slurp(regions [][4]int) string {
+func format_regions_for_slurp(regions []common.WindowRegion) string {
 	ans := strings.Builder{}
 	for _, r := range regions {
-		ans.WriteString(fmt.Sprintf("%d,%d %dx%d\n", r[0], r[1], r[2], r[3]))
+		ans.WriteString(fmt.Sprintf("%d,%d %dx%d %s\n", r.X, r.Y, r.Width, r.Height, strings.ReplaceAll(r.Label, "\n", " ")))
 	}
 	return ans.String()
 }
 
-func get_window_regions() (ans [][4]int, err error) {
+func get_window_regions() (ans []common.WindowRegion, err error) {
 	switch {
 	case hypr.IsHyprlandRunning():
 		ans, err = hypr.GetWindowRegions()
@@ -193,11 +194,11 @@ func run_loop() {
 		a := func(x string) { ans = append(ans, x) }
 		a(text)
 		a("")
-		a(fmt.Sprintf("Press %s to abort", lp.SprintStyled("italic fg=red", "Esc")))
+		a(fmt.Sprintf(" Press %s to abort", lp.SprintStyled("italic fg=red", "Esc")))
 		a("")
-		a("Screenshot will be:")
-		a(fmt.Sprintf("  copied to %s", lp.SprintStyled("fg=yellow", "clipboard")))
-		a(fmt.Sprintf("  saved to %s", lp.SprintStyled("fg=yellow", FILENAME)))
+		a(" Screenshot will be:")
+		a(fmt.Sprintf("   copied to %s", lp.SprintStyled("fg=yellow", "clipboard")))
+		a(fmt.Sprintf("   saved to %s", lp.SprintStyled("fg=yellow", FILENAME)))
 		return
 	}
 
@@ -242,7 +243,7 @@ func run_loop() {
 		var script, input string
 		switch strings.ToLower(ev.Text) {
 		case "w":
-			script = `slurp | grim -g -`
+			script = `slurp -r -d -f '%x,%y %wx%h %l\n' | grim -g -`
 			if regions, err := get_window_regions(); err != nil {
 				set_failed_command_message("getting_window_regions", nil, err)
 				state = showing_failure
@@ -252,7 +253,7 @@ func run_loop() {
 				input = format_regions_for_slurp(regions)
 			}
 		case "r":
-			script = `slurp | grim -g -`
+			script = `slurp -d | grim -g -`
 		case "d":
 			script = `grim`
 		}

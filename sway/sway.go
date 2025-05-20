@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"wm/common"
 
 	"github.com/kovidgoyal/kitty/tools/tty"
 	"github.com/kovidgoyal/kitty/tools/utils"
@@ -213,7 +214,7 @@ func ExitSway() (err error) {
 	}
 }
 
-func GetWindowRegions() (regions [][4]int, err error) {
+func GetWindowRegions() (regions []common.WindowRegion, err error) {
 	root, err := get_tree()
 	if err != nil {
 		return nil, err
@@ -222,7 +223,7 @@ func GetWindowRegions() (regions [][4]int, err error) {
 		if _, ok := node[`pid`].(float64); ok {
 			if visible, ok := node[`visible`].(bool); ok && visible {
 				if rect, ok := node[`rect`].(map[string]any); ok {
-					regions = append(regions, [4]int{int(rect[`x`].(float64)), int(rect["y"].(float64)), int(rect["width"].(float64)), int(rect["height"].(float64))})
+					regions = append(regions, common.WindowRegion{X: int(rect[`x`].(float64)), Y: int(rect["y"].(float64)), Width: int(rect["width"].(float64)), Height: int(rect["height"].(float64))})
 				}
 			}
 		}
