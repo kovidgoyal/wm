@@ -243,7 +243,7 @@ func run_loop() {
 		var script, input string
 		switch strings.ToLower(ev.Text) {
 		case "w":
-			script = `slurp -r -d -f '%x,%y %wx%h %l\n' | grim -g -`
+			script = `slurp -r -d | grim -g -`
 			if regions, err := get_window_regions(); err != nil {
 				set_failed_command_message("getting_window_regions", nil, err)
 				state = showing_failure
