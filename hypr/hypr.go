@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"wm/common"
 
 	"github.com/kovidgoyal/kitty/tools/tty"
@@ -391,6 +392,8 @@ func TogglePower(action, output_name_glob string) (err error) {
 		}
 	}
 	if len(commands) > 0 {
+		// issue the actual dpms command after a second so that any key release events dont re-awaken the monitors
+		time.Sleep(time.Second)
 		_, err = send_commands(commands...)
 	}
 	return
