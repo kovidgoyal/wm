@@ -1,6 +1,7 @@
 Some small utilities that I use to create my personal workflows in Wayland.
 Screenshot, kitty panel based bar, backlight control, various minor compositor integration
-endpoints, etc.
+endpoints, etc. Not really re-useable by anyone else, but perhaps the code can
+serve as an inspiration.
 
 To build::
 
