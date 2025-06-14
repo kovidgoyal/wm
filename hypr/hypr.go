@@ -393,6 +393,7 @@ func TogglePower(action, output_name_glob string) (err error) {
 	}
 	if len(commands) > 0 {
 		// issue the actual dpms command after a second so that any key release events dont re-awaken the monitors
+		// this should really be fixed in hyprland by having it not wakeup on release events.
 		time.Sleep(time.Second)
 		_, err = send_commands(commands...)
 	}
