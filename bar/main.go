@@ -267,9 +267,9 @@ func (self *state) system_load() (s Segment) {
 		normalized := val / float64(self.num_cpus)
 		fg := RED
 		switch {
-		case normalized < 1:
+		case normalized < 0.5:
 			fg = WHITE
-		case normalized < 2:
+		case normalized < 1:
 			fg = YELLOW
 		}
 		return colored_text(fmt.Sprintf("%.1f", normalized), fg)
