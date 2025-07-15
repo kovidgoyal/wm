@@ -9,7 +9,7 @@ toolchain go1.24.1
 
 require (
 	github.com/kovidgoyal/kitty v0.0.0-00010101000000-000000000000
-	golang.org/x/sys v0.33.0
+	golang.org/x/sys v0.34.0
 )
 
 require (
@@ -31,6 +31,7 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b // indirect
-	golang.org/x/image v0.27.0 // indirect
+	golang.org/x/image v0.29.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	howett.net/plist v1.0.1 // indirect
 )

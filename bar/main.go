@@ -446,6 +446,7 @@ func (self *state) battery() (s Segment) {
 			batteries = append(batteries, bs)
 		}
 	}
+	err = nil
 	if len(batteries) == 0 {
 		s.skip = true
 		return
@@ -748,7 +749,7 @@ func launch_panel() {
 		os.Exit(1)
 	}
 	kitty := utils.Which("kitty")
-	unix.Exec(kitty, []string{"kitty", "+kitten", "panel", `--override=font_size=12`, `--override=background=black`, self_exe, "bar", "inner"}, os.Environ())
+	unix.Exec(kitty, []string{"kitty", "+kitten", "panel", `--override=background=black`, self_exe, "bar", "inner"}, os.Environ())
 }
 
 func Main(args []string) {
