@@ -272,7 +272,7 @@ func (self *state) system_load() (s Segment) {
 		case normalized < 1:
 			fg = YELLOW
 		}
-		return colored_text(fmt.Sprintf("%.1f", normalized), fg)
+		return colored_text(fmt.Sprintf("%d", int(normalized*100)), fg)
 
 	}
 	return default_segment(fmt.Sprintf(" %s %s %s ", f(a), f(b), f(c)))
