@@ -466,7 +466,21 @@ func MoveToWorkspace(name string) (err error) {
 			return move_to_workspace(active_workspace, active_window, w, windows)
 		}
 	}
-	return fmt.Errorf("No workspace named %s exists", name)
+	// empty workspace, just move unconditionally
+	cmds := []string{}
+	active_window_was_grouped := len(active_window.Grouped) > 0
+	if active_window_was_grouped {
+		cmds = append(cmds, "dispatch togglegroup")
+	}
+	cmds = append(cmds, fmt.Sprintf("dispatch movetoworkspacesilent name:%s", name))
+	if _, err = send_commands(cmds...); err != nil {
+		return
+	}
+	if active_window_was_grouped {
+		// regroup remaining windows after we have moved out the active one
+		err = toggle_stack()
+	}
+	return
 }
 
 func SuperTab() (err error) {
