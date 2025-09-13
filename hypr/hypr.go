@@ -422,21 +422,21 @@ func move_to_workspace(active_workspace Workspace, active_window Window, target_
 	if active_window_was_grouped {
 		cmds = append(cmds, "dispatch togglegroup")
 	}
-	cmds = append(cmds, fmt.Sprintf("dispatch movetoworkspacesilent %d", target_workspace.Id))
+	cmds = append(cmds, fmt.Sprintf("dispatch movetoworkspacesilent name:%s", target_workspace.Name))
 	if target_workspace_is_stacked {
 		cmds = append(cmds,
-			fmt.Sprintf("dispatch workspace %d", target_workspace.Id),
+			fmt.Sprintf("dispatch workspace name:%s", target_workspace.Name),
 			"dispatch focuswindow address:"+active_window.Address,
 			"dispatch moveintogroup l",
-			fmt.Sprintf("dispatch workspace %d", active_workspace.Id),
+			fmt.Sprintf("dispatch workspace name:%s", active_workspace.Name),
 		)
 	} else if target_workspace.Windows == 0 {
 		// single window in target workspace so put it in stack layout
 		cmds = append(cmds,
-			fmt.Sprintf("dispatch workspace %d", target_workspace.Id),
+			fmt.Sprintf("dispatch workspace name:%s", target_workspace.Name),
 			"dispatch focuswindow address:"+active_window.Address,
 			"dispatch togglegroup",
-			fmt.Sprintf("dispatch workspace %d", active_workspace.Id),
+			fmt.Sprintf("dispatch workspace name:%s", active_workspace.Name),
 		)
 	}
 	if _, err = send_commands(cmds...); err != nil {
