@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -273,8 +274,34 @@ func GetPIDsForGracefulShutdown() []int {
 }
 
 func ExitHyprland() (err error) {
-	_, err = send_commands("dispatch exit")
+	_, err = send_commands("eval hl.dispatch(hl.dsp.exit())")
 	return err
+}
+
+func focus_window(addr string) string {
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.focus({ window = "address:%s" }))`, addr)
+}
+
+func move_active_window_out_of_group() string {
+	return `eval hl.dispatch(hl.dsp.window.move({ out_of_group = "l" }))`
+}
+
+func move_window_in_direction(addr, direction string, group_aware bool) string {
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.window.move({ window = "address:%s", direction = "%s", group_aware = %v }))`, addr, direction, group_aware)
+}
+
+func make_window_into_group(addr string) string {
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.group.toggle({ window = "address:%s" }))`, addr)
+}
+
+func window_is_grouped(w Window) bool {
+	ans := len(w.Grouped)
+	for _, x := range w.Grouped {
+		if x == w.Address {
+			ans--
+		}
+	}
+	return ans > 0
 }
 
 func toggle_stack() (err error) {
@@ -284,40 +311,21 @@ func toggle_stack() (err error) {
 	if err = make_requests(request{cmd: "activeworkspace", response: &workspace}, request{cmd: "clients", response: &clients}, request{cmd: "activewindow", response: &active_window}); err != nil {
 		return
 	}
-	clients = utils.Filter(clients, func(c Window) bool {
-		return !c.Floating && c.Workspace.Id == workspace.Id
-	})
+	window_is_moveable := func(c Window) bool { return !c.Floating && c.Workspace.Id == workspace.Id }
+	clients = utils.Filter(clients, window_is_moveable)
 	if len(clients) == 0 {
 		return
 	}
-	seen := make(map[string]bool)
-	if len(active_window.Grouped) > 0 { // ungroup active window
-		if _, err = send_commands("dispatch togglegroup"); err != nil {
-			return
+	is_grouped := slices.ContainsFunc(clients, window_is_grouped)
+	if is_grouped {
+		for _, c := range clients {
+			send_commands(focus_window(c.Address), move_active_window_out_of_group())
 		}
-		for _, addr := range active_window.Grouped {
-			seen[addr] = true
-		}
-	}
-	for _, c := range clients {
-		if len(c.Grouped) > 0 && !seen[c.Address] { // ungroup window
-			if _, err = send_commands(
-				fmt.Sprintf("dispatch focuswindow address:%s", c.Address), fmt.Sprintf("dispatch togglegroup"),
-				fmt.Sprintf("dispatch focuswindow address:%s", active_window.Address),
-			); err != nil {
-				return
-			}
-			for _, addr := range c.Grouped {
-				seen[addr] = true
-			}
-
-		}
-	}
-	if len(seen) > 0 {
 		// Make active window the master
-		_, err = send_commands("dispatch movewindow l")
+		_, err = send_commands(focus_window(active_window.Address), move_window_in_direction(active_window.Address, "l", false))
 		return
 	}
+
 	if len(clients) > 0 { // group all windows
 		q := clients[0]
 		for _, x := range clients {
@@ -326,8 +334,10 @@ func toggle_stack() (err error) {
 				break
 			}
 		}
-		if _, err = send_commands(fmt.Sprintf("dispatch focuswindow address:%s", q.Address), "dispatch togglegroup"); err != nil {
-			return
+		if len(q.Grouped) == 0 {
+			if _, err = send_commands(focus_window(q.Address), make_window_into_group(q.Address)); err != nil {
+				return
+			}
 		}
 		addresses_to_move := utils.NewSet[string](len(clients))
 		for _, c := range clients {
@@ -342,22 +352,24 @@ func toggle_stack() (err error) {
 			if err = make_requests(request{"clients", &nclients}); err != nil {
 				return
 			}
-			var dest, target Window
-			found := 0
+			nclients = utils.Filter(nclients, window_is_moveable)
+			var dest Window
+			found := false
 			for _, x := range nclients {
-				switch x.Address {
-				case q.Address:
+				if x.Address == q.Address {
+					found = true
 					dest = x
-					found++
-				case addr:
-					target = x
-					found++
+					break
 				}
-				if found == 2 {
-					direction := target.Direction_to(dest)
+			}
+			if found {
+				for _, x := range nclients {
+					if x.Address == q.Address {
+						continue
+					}
+					direction := x.Direction_to(dest)
 					if _, err = send_commands(
-						fmt.Sprintf("dispatch focuswindow address:%s", target.Address),
-						fmt.Sprintf("dispatch moveintogroup %s", direction),
+						move_window_in_direction(x.Address, direction, true),
 					); err != nil {
 						return
 					}
@@ -365,7 +377,7 @@ func toggle_stack() (err error) {
 				}
 			}
 		}
-		if _, err = send_commands(fmt.Sprintf("dispatch focuswindow address:%s", active_window.Address)); err != nil {
+		if _, err = send_commands(focus_window(active_window.Address)); err != nil {
 			return
 		}
 	}
@@ -388,7 +400,7 @@ func TogglePower(action, output_name_glob string) (err error) {
 		if match, err := filepath.Match(output_name_glob, m.Name); err != nil {
 			return err
 		} else if match {
-			commands = append(commands, fmt.Sprintf("dispatch dpms %s %s", action, m.Name))
+			commands = append(commands, fmt.Sprintf(`eval hl.dispatch(hl.dsp.dpms({ action = "%s", monitor = "%s" }))`, action, m.Name))
 		}
 	}
 	if len(commands) > 0 {
@@ -401,8 +413,16 @@ func TogglePower(action, output_name_glob string) (err error) {
 }
 
 func ChangeToWorkspace(name string) (err error) {
-	_, err = send_commands("dispatch workspace name:" + name)
+	_, err = send_commands(switch_to_worksapce(name))
 	return
+}
+
+func movetoworkspacesilent(name string) string {
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.window.move({ workspace = "name:%s", silent = true }))`, name)
+}
+
+func switch_to_worksapce(name string) string {
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.focus({ workspace = "name:%s" }))`, name)
 }
 
 // move the window managing the window stacks in source and description workspaces
@@ -420,23 +440,23 @@ func move_to_workspace(active_workspace Workspace, active_window Window, target_
 		}
 	}
 	if active_window_was_grouped {
-		cmds = append(cmds, "dispatch togglegroup")
+		cmds = append(cmds, make_window_into_group(active_window.Address))
 	}
-	cmds = append(cmds, fmt.Sprintf("dispatch movetoworkspacesilent name:%s", target_workspace.Name))
+	cmds = append(cmds, movetoworkspacesilent(target_workspace.Name))
 	if target_workspace_is_stacked {
 		cmds = append(cmds,
-			fmt.Sprintf("dispatch workspace name:%s", target_workspace.Name),
-			"dispatch focuswindow address:"+active_window.Address,
-			"dispatch moveintogroup l",
-			fmt.Sprintf("dispatch workspace name:%s", active_workspace.Name),
+			switch_to_worksapce(target_workspace.Name),
+			focus_window(active_window.Address),
+			move_window_in_direction(active_window.Address, "l", true),
+			switch_to_worksapce(active_workspace.Name),
 		)
 	} else if target_workspace.Windows == 0 {
 		// single window in target workspace so put it in stack layout
 		cmds = append(cmds,
-			fmt.Sprintf("dispatch workspace name:%s", target_workspace.Name),
-			"dispatch focuswindow address:"+active_window.Address,
-			"dispatch togglegroup",
-			fmt.Sprintf("dispatch workspace name:%s", active_workspace.Name),
+			switch_to_worksapce(target_workspace.Name),
+			focus_window(active_window.Address),
+			make_window_into_group(active_window.Address),
+			switch_to_worksapce(active_workspace.Name),
 		)
 	}
 	if _, err = send_commands(cmds...); err != nil {
@@ -470,9 +490,9 @@ func MoveToWorkspace(name string) (err error) {
 	cmds := []string{}
 	active_window_was_grouped := len(active_window.Grouped) > 0
 	if active_window_was_grouped {
-		cmds = append(cmds, "dispatch togglegroup")
+		cmds = append(cmds, make_window_into_group(active_window.Address))
 	}
-	cmds = append(cmds, fmt.Sprintf("dispatch movetoworkspacesilent name:%s", name))
+	cmds = append(cmds, movetoworkspacesilent(name))
 	if _, err = send_commands(cmds...); err != nil {
 		return
 	}
@@ -488,7 +508,7 @@ func SuperTab() (err error) {
 	if err = make_requests(request{"activewindow", &window}); err != nil {
 		return
 	}
-	cmd := utils.IfElse(len(window.Grouped) > 1, "dispatch changegroupactive", "dispatch cyclenext")
+	cmd := utils.IfElse(len(window.Grouped) > 1, "eval hl.dispatch(hl.dsp.group.next())", "eval hl.dispatch(hl.dsp.window.cycle_next())")
 	_, err = send_commands(cmd)
 	return
 }
