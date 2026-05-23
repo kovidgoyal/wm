@@ -166,6 +166,6 @@ func main() {
 			return
 		},
 	})
-	root.Exec(os.Args...)
+	root.ExecArgs(os.Args)
 
 }
