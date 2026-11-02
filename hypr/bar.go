@@ -24,8 +24,12 @@ func handle_bar_event(line string, set_strings func(...string)) (err error) {
 		if found {
 			set_strings("title:" + title)
 		}
-	case "workspace":
-		set_strings("workspace:" + payload)
+	case "workspacev2":
+		// payload is: ID,NAME
+		_, name, found := strings.Cut(payload, ",")
+		if found {
+			set_strings("workspace:" + name)
+		}
 	case "focusedmon":
 		_, name, found := strings.Cut(payload, ",")
 		if found {
