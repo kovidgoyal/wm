@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"os/exec"
 	"strings"
 
 	"github.com/kovidgoyal/kitty/tools/utils"
@@ -32,14 +31,6 @@ func handle_bar_event(line string, set_strings func(...string)) (err error) {
 		if found {
 			set_strings("workspace:" + name)
 		}
-	case "bell":
-		// See https://github.com/hyprwm/Hyprland/discussions/10428
-		// Eventually use: https://specifications.freedesktop.org/sound-theme-spec/latest/sound_lookup.html
-		// to avoid hardcoding sound file path.
-		cmd := exec.Command("pw-play", "/usr/share/sounds/ocean/stereo/bell.oga")
-		go func() {
-			cmd.Run()
-		}()
 	}
 	return
 }
