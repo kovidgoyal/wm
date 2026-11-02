@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,8 +85,10 @@ type Window struct {
 	At                [2]int   `json:"at"`
 	Size              [2]int   `json:"size"`
 	Workspace         struct {
-		Id   int    `json:"id"`
-		Name string `json:"name"`
+		Id      int    `json:"id"`
+		Address string `json:"address"`
+		Type    string `json:"type"`
+		Name    string `json:"name"`
 	} `json:"workspace"`
 	Tags             []string `json:"tags"`
 	Swallowing       string   `json:"swallowing"`
@@ -113,12 +116,16 @@ type Monitor struct {
 	X                int     `json:"x"`
 	Y                int     `json:"y"`
 	Active_workspace struct {
-		Id   int    `json:"id"`
-		Name string `json:"name"`
+		Id      int    `json:"id"`
+		Address string `json:"address"`
+		Type    string `json:"type"`
+		Name    string `json:"name"`
 	} `json:"activeWorkspace"`
 	Special_workspace struct {
-		Id   int    `json:"id"`
-		Name string `json:"name"`
+		Id      int    `json:"id"`
+		Address string `json:"address"`
+		Type    string `json:"type"`
+		Name    string `json:"name"`
 	} `json:"specialWorkspace"`
 	Reserved          []int    `json:"reserved"`
 	Scale             float64  `json:"scale"`
@@ -142,6 +149,8 @@ func (c Monitor) String() string {
 
 type Workspace struct {
 	Id                int    `json:"id"`
+	Address           string `json:"address"`
+	Type              string `json:"type"`
 	Name              string `json:"name"`
 	Monitor           string `json:"monitor"`
 	Monitor_id        int    `json:"monitorID"`
@@ -229,14 +238,34 @@ func make_requests(requests ...request) (err error) {
 	return
 }
 
-func (self Window) Direction_to(dest Window) string {
+// Return the direction in which to move self to reach dest, along with the
+// size of the gap between them. Windows whose edges face each other with
+// overlapping spans are adjacent and have a small gap, other windows get a
+// large gap so that adjacent windows are preferred.
+func (self Window) Direction_to(dest Window) (direction string, gap int) {
+	sx1, sy1, sx2, sy2 := self.At[0], self.At[1], self.At[0]+self.Size[0], self.At[1]+self.Size[1]
+	dx1, dy1, dx2, dy2 := dest.At[0], dest.At[1], dest.At[0]+dest.Size[0], dest.At[1]+dest.Size[1]
+	v_overlap := min(sy2, dy2) > max(sy1, dy1)
+	h_overlap := min(sx2, dx2) > max(sx1, dx1)
+	switch {
+	case v_overlap && sx2 <= dx1:
+		return "r", dx1 - sx2
+	case v_overlap && sx1 >= dx2:
+		return "l", sx1 - dx2
+	case h_overlap && sy2 <= dy1:
+		return "d", dy1 - sy2
+	case h_overlap && sy1 >= dy2:
+		return "u", sy1 - dy2
+	}
+	// not adjacent, fall back to a heuristic based on position
+	const far = 1 << 30
 	switch {
 	case self.At[0] == dest.At[0]:
-		return utils.IfElse(self.At[1] < dest.At[1], "d", "u")
+		return utils.IfElse(self.At[1] < dest.At[1], "d", "u"), far
 	case self.At[0] < dest.At[0]:
-		return "r"
+		return "r", far
 	default:
-		return "l"
+		return "l", far
 	}
 }
 
@@ -248,7 +277,7 @@ func GetWindowRegions() (regions []common.WindowRegion, err error) {
 	}
 	seen := make(map[[4]int]bool)
 	for _, w := range windows {
-		if w.Workspace.Id == workspace.Id {
+		if w.Workspace.Address == workspace.Address {
 			region := [4]int{w.At[0], w.At[1], w.Size[0], w.Size[1]}
 			if !seen[region] {
 				seen[region] = true
@@ -295,13 +324,46 @@ func make_window_into_group(addr string) string {
 }
 
 func window_is_grouped(w Window) bool {
-	ans := len(w.Grouped)
-	for _, x := range w.Grouped {
-		if x == w.Address {
-			ans--
+	// A window in a group by itself is also considered grouped, as this is
+	// how a stack with a single window is represented.
+	return len(w.Grouped) > 0
+}
+
+// Move all tiled windows in the specified workspace into the group containing
+// the window group_member. Works by repeatedly moving an ungrouped window that
+// is adjacent to the group into it.
+func merge_into_group(group_member, workspace_address string) (err error) {
+	window_is_moveable := func(c Window) bool { return !c.Floating && c.Workspace.Address == workspace_address }
+	var clients []Window
+	for attempt := 0; attempt == 0 || attempt < 4*len(clients); attempt++ {
+		if err = make_requests(request{"clients", &clients}); err != nil {
+			return
+		}
+		clients = utils.Filter(clients, window_is_moveable)
+		idx := slices.IndexFunc(clients, func(x Window) bool { return x.Address == group_member })
+		if idx < 0 {
+			break
+		}
+		dest := clients[idx]
+		var candidate Window
+		direction, best_gap := "", -1
+		for _, x := range clients {
+			if x.Address == dest.Address || slices.Contains(dest.Grouped, x.Address) {
+				continue
+			}
+			d, gap := x.Direction_to(dest)
+			if best_gap < 0 || gap < best_gap {
+				candidate, direction, best_gap = x, d, gap
+			}
+		}
+		if direction == "" {
+			break
+		}
+		if _, err = send_commands(move_window_in_direction(candidate.Address, direction, true)); err != nil {
+			return
 		}
 	}
-	return ans > 0
+	return
 }
 
 func toggle_stack() (err error) {
@@ -311,7 +373,7 @@ func toggle_stack() (err error) {
 	if err = make_requests(request{cmd: "activeworkspace", response: &workspace}, request{cmd: "clients", response: &clients}, request{cmd: "activewindow", response: &active_window}); err != nil {
 		return
 	}
-	window_is_moveable := func(c Window) bool { return !c.Floating && c.Workspace.Id == workspace.Id }
+	window_is_moveable := func(c Window) bool { return !c.Floating && c.Workspace.Address == workspace.Address }
 	clients = utils.Filter(clients, window_is_moveable)
 	if len(clients) == 0 {
 		return
@@ -339,43 +401,8 @@ func toggle_stack() (err error) {
 				return
 			}
 		}
-		addresses_to_move := utils.NewSet[string](len(clients))
-		for _, c := range clients {
-			if c.Address != q.Address {
-				addresses_to_move.Add(c.Address)
-			}
-		}
-		for addresses_to_move.Len() > 0 {
-			addr := addresses_to_move.Any()
-			addresses_to_move.Discard(addr)
-			var nclients []Window
-			if err = make_requests(request{"clients", &nclients}); err != nil {
-				return
-			}
-			nclients = utils.Filter(nclients, window_is_moveable)
-			var dest Window
-			found := false
-			for _, x := range nclients {
-				if x.Address == q.Address {
-					found = true
-					dest = x
-					break
-				}
-			}
-			if found {
-				for _, x := range nclients {
-					if x.Address == q.Address {
-						continue
-					}
-					direction := x.Direction_to(dest)
-					if _, err = send_commands(
-						move_window_in_direction(x.Address, direction, true),
-					); err != nil {
-						return
-					}
-					break
-				}
-			}
+		if err = merge_into_group(q.Address, workspace.Address); err != nil {
+			return
 		}
 		if _, err = send_commands(focus_window(active_window.Address)); err != nil {
 			return
@@ -417,25 +444,34 @@ func ChangeToWorkspace(name string) (err error) {
 	return
 }
 
+// Hyprland rejects name:N for workspaces with numeric names, those must be
+// referred to by number
+func workspace_selector(name string) string {
+	if _, err := strconv.Atoi(name); err == nil {
+		return name
+	}
+	return "name:" + name
+}
+
 func movetoworkspacesilent(name string) string {
-	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.window.move({ workspace = "name:%s", silent = true }))`, name)
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.window.move({ workspace = "%s", follow = false }))`, workspace_selector(name))
 }
 
 func switch_to_worksapce(name string) string {
-	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.focus({ workspace = "name:%s" }))`, name)
+	return fmt.Sprintf(`eval hl.dispatch(hl.dsp.focus({ workspace = "%s" }))`, workspace_selector(name))
 }
 
 // move the window managing the window stacks in source and description workspaces
 func move_to_workspace(active_workspace Workspace, active_window Window, target_workspace Workspace, windows []Window) (err error) {
-	if active_workspace.Id == target_workspace.Id {
+	if active_workspace.Address == target_workspace.Address {
 		return
 	}
 	cmds := []string{}
 	active_window_was_grouped := len(active_window.Grouped) > 0
-	target_workspace_is_stacked := false
+	grouped_window_in_target := "" // non-empty if target workspace is stacked
 	for _, w := range windows {
-		if w.Workspace.Id == target_workspace.Id && len(w.Grouped) > 0 {
-			target_workspace_is_stacked = true
+		if w.Workspace.Address == target_workspace.Address && len(w.Grouped) > 0 {
+			grouped_window_in_target = w.Address
 			break
 		}
 	}
@@ -443,13 +479,19 @@ func move_to_workspace(active_workspace Workspace, active_window Window, target_
 		cmds = append(cmds, make_window_into_group(active_window.Address))
 	}
 	cmds = append(cmds, movetoworkspacesilent(target_workspace.Name))
-	if target_workspace_is_stacked {
-		cmds = append(cmds,
-			switch_to_worksapce(target_workspace.Name),
-			focus_window(active_window.Address),
-			move_window_in_direction(active_window.Address, "l", true),
-			switch_to_worksapce(active_workspace.Name),
-		)
+	if grouped_window_in_target != "" {
+		cmds = append(cmds, switch_to_worksapce(target_workspace.Name), focus_window(active_window.Address))
+		if _, err = send_commands(cmds...); err != nil {
+			return
+		}
+		cmds = nil
+		merge_err := merge_into_group(grouped_window_in_target, target_workspace.Address)
+		if _, err = send_commands(switch_to_worksapce(active_workspace.Name)); err != nil {
+			return
+		}
+		if merge_err != nil {
+			return merge_err
+		}
 	} else if target_workspace.Windows == 0 {
 		// single window in target workspace so put it in stack layout
 		cmds = append(cmds,
@@ -459,8 +501,10 @@ func move_to_workspace(active_workspace Workspace, active_window Window, target_
 			switch_to_worksapce(active_workspace.Name),
 		)
 	}
-	if _, err = send_commands(cmds...); err != nil {
-		return
+	if len(cmds) > 0 {
+		if _, err = send_commands(cmds...); err != nil {
+			return
+		}
 	}
 	if active_window_was_grouped {
 		// regroup remaining windows after we have moved out the active one
