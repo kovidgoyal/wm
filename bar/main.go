@@ -701,6 +701,10 @@ func (self *state) draw_screen() (err error) {
 			title = ""
 		}
 		left_text := concat_segments_hard(BLACK, false, w, Segment{text: title, fg: WHITE, bg: DARK_GRAY}).styled_text()
+		// Use synchronized output so the terminal never renders the
+		// intermediate state between the line being cleared and redrawn.
+		self.lp.StartAtomicUpdate()
+		defer self.lp.EndAtomicUpdate()
 		self.lp.QueueWriteString("\r\x1b[K")
 		self.lp.QueueWriteString(left_text)
 		rpos := columns - right_sz
